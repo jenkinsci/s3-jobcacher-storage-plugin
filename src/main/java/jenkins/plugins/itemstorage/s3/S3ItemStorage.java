@@ -24,7 +24,6 @@
 
 package jenkins.plugins.itemstorage.s3;
 
-import com.amazonaws.regions.Regions;
 import com.cloudbees.jenkins.plugins.awscredentials.AmazonWebServicesCredentials;
 import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
@@ -44,6 +43,7 @@ import jenkins.plugins.itemstorage.ItemStorageDescriptor;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.verb.POST;
+import software.amazon.awssdk.regions.Region;
 
 /**
  * S3 implementation of the Item Storage extension point.
@@ -136,8 +136,8 @@ public class S3ItemStorage extends ItemStorage<S3ObjectPath> {
                 return new ListBoxModel();
             }
             ListBoxModel model = new ListBoxModel();
-            for (Regions r : Regions.values()) {
-                model.add(r.getName(), r.getName());
+            for (Region r : Region.values()) {
+                model.add(r.id(), r.id());
             }
             return model;
         }
