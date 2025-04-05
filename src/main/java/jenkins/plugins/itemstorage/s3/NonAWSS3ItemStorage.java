@@ -32,6 +32,7 @@ import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import hudson.Extension;
 import hudson.model.Item;
 import hudson.model.listeners.ItemListener;
 import hudson.security.ACL;
@@ -43,6 +44,7 @@ import jenkins.model.Jenkins;
 import jenkins.plugins.itemstorage.GlobalItemStorage;
 import jenkins.plugins.itemstorage.ItemStorage;
 import jenkins.plugins.itemstorage.ItemStorageDescriptor;
+import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.verb.POST;
@@ -153,6 +155,8 @@ public class NonAWSS3ItemStorage extends ItemStorage<S3ObjectPath> {
                 lookupCredentials(), endpoint, region, prefix, signerVersion, pathStyleAccess, parallelDownloads);
     }
 
+    @Symbol("nonAWSS3")
+    @Extension
     public static final class DescriptorImpl extends ItemStorageDescriptor<S3ObjectPath> {
 
         @NonNull
