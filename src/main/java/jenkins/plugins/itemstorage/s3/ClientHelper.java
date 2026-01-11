@@ -1,15 +1,17 @@
 package jenkins.plugins.itemstorage.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder.EndpointConfiguration;
 import hudson.ProxyConfiguration;
 import hudson.util.Secret;
 import java.io.Serializable;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 /**
  * Modification of the Jenkins S3 Plugin
@@ -33,19 +35,19 @@ public class ClientHelper implements Serializable {
     private final boolean pathStyleAccess;
     private final boolean parallelDownloads;
 
-    private transient AWSCredentials credentials;
-    private transient AmazonS3 client;
+    private transient AwsCredentials credentials;
+    private transient S3Client client;
 
-    public ClientHelper(AWSCredentials credentials, ProxyConfiguration proxy) {
+    public ClientHelper(AwsCredentials credentials, ProxyConfiguration proxy) {
         this(credentials, null, proxy);
     }
 
-    public ClientHelper(AWSCredentials credentials, String region, ProxyConfiguration proxy) {
+    public ClientHelper(AwsCredentials credentials, String region, ProxyConfiguration proxy) {
         this(credentials, null, region, proxy, null, false, true);
     }
 
     public ClientHelper(
-            AWSCredentials credentials,
+            AwsCredentials credentials,
             String endpoint,
             String region,
             ProxyConfiguration proxy,
@@ -60,8 +62,8 @@ public class ClientHelper implements Serializable {
         this.parallelDownloads = parallelDownloads;
 
         if (credentials != null) {
-            this.accessKey = credentials.getAWSAccessKeyId();
-            this.secretKey = credentials.getAWSSecretKey();
+            this.accessKey = credentials.accessKeyId();
+            this.secretKey = credentials.secretAccessKey();
         } else {
             this.accessKey = null;
             this.secretKey = null;
@@ -72,40 +74,41 @@ public class ClientHelper implements Serializable {
         return parallelDownloads;
     }
 
-    public synchronized AmazonS3 client() {
+    public synchronized S3Client client() {
         if (client == null) {
-            AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
-            ClientConfiguration config = getClientConfiguration(proxy);
+            S3ClientBuilder builder = S3Client.builder();
+            ClientOverrideConfiguration config = getClientConfiguration(proxy);
 
             if (getCredentials() != null) {
-                builder.setCredentials(new AWSStaticCredentialsProvider(getCredentials()));
+                builder.credentialsProvider(StaticCredentialsProvider.create(getCredentials()));
             }
 
             if (endpoint != null) {
-                builder.setEndpointConfiguration(new EndpointConfiguration(endpoint, region));
-                builder.setPathStyleAccessEnabled(pathStyleAccess);
-                config.setSignerOverride(signerVersion);
+                builder.endpointOverride(new EndpointConfiguration(endpoint, region));
+                builder.pathStyleAccessEnabled(pathStyleAccess);
+                config.signerOverride(signerVersion);
             } else if (region != null) {
-                builder.setRegion(region);
+                builder.region(Region.of(region));
             }
 
-            builder.setClientConfiguration(config);
+            builder.httpClientBuilder(ApacheHttpClient.builder()).overrideConfiguration(config);
             client = builder.build();
         }
 
         return client;
     }
 
-    public static ClientConfiguration getClientConfiguration(ProxyConfiguration proxy) {
-        ClientConfiguration clientConfiguration = new ClientConfiguration();
+    public static ClientOverrideConfiguration getClientConfiguration(ProxyConfiguration proxy) {
+        ClientOverrideConfiguration clientConfiguration = ClientOverrideConfiguration.builder()
+                .build();
 
         if (shouldUseProxy(proxy, "s3.amazonaws.com")) {
-            clientConfiguration.setProxyHost(proxy.name);
-            clientConfiguration.setProxyPort(proxy.port);
+            clientConfiguration.proxyHost(proxy.name);
+            clientConfiguration.proxyPort(proxy.port);
 
             if (proxy.getUserName() != null) {
-                clientConfiguration.setProxyUsername(proxy.getUserName());
-                clientConfiguration.setProxyPassword(Secret.toString(proxy.getSecretPassword()));
+                clientConfiguration.proxyUsername(proxy.getUserName());
+                clientConfiguration.proxyPassword(Secret.toString(proxy.getSecretPassword()));
             }
         }
 
@@ -121,9 +124,9 @@ public class ClientHelper implements Serializable {
                 .noneMatch(p -> p.matcher(hostname).matches());
     }
 
-    public synchronized AWSCredentials getCredentials() {
+    public synchronized AwsCredentials getCredentials() {
         if (credentials == null && accessKey != null && secretKey != null) {
-            credentials = new BasicAWSCredentials(accessKey, secretKey);
+            credentials = AwsBasicCredentials.create(accessKey, secretKey);
         }
         return credentials;
     }
