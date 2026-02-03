@@ -24,14 +24,14 @@
 
 package jenkins.plugins.itemstorage.s3;
 
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import hudson.remoting.VirtualChannel;
 import hudson.util.DirScanner;
 import java.io.File;
 import java.io.IOException;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.S3ObjectSummary;
 
 /**
  * Copies all objects from the path in S3 to the target base path
@@ -74,20 +74,21 @@ public class S3DownloadAllCallable extends S3Callable<Integer> {
 
         int totalCount;
         Downloads downloads = new Downloads();
-        ObjectListing objectListing = null;
+        ListObjectsResponse objectListing = null;
 
         do {
             objectListing = transferManager
                     .getAmazonS3Client()
-                    .listObjects(new ListObjectsRequest()
-                            .withBucketName(bucketName)
-                            .withPrefix(pathPrefix)
-                            .withMarker(objectListing != null ? objectListing.getNextMarker() : null));
+                    .listObjects(ListObjectsRequest.builder()
+                    .bucket(bucketName)
+                    .prefix(pathPrefix)
+                    .marker(objectListing != null ? objectListing.nextMarker() : null)
+                    .build());
 
-            for (S3ObjectSummary summary : objectListing.getObjectSummaries()) {
+            for (S3ObjectSummary summary : objectListing.objectSummaries()) {
                 downloads.startDownload(transferManager, base, pathPrefix, summary);
             }
-        } while (objectListing.getNextMarker() != null);
+        } while (objectListing.nextMarker() != null);
 
         // Grab # of files copied
         totalCount = downloads.count();
