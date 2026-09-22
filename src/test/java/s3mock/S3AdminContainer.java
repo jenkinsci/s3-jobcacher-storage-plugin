@@ -1,32 +1,26 @@
-package minio;
+package s3mock;
 
 import static java.lang.String.format;
 
-import com.github.dockerjava.api.command.InspectContainerResponse;
 import java.io.IOException;
 import org.testcontainers.containers.GenericContainer;
 
-public class MinioMcContainer extends GenericContainer<MinioMcContainer> {
+public class S3AdminContainer extends GenericContainer<S3AdminContainer> {
 
-    private final MinioContainer minio;
+    private final S3MockContainer s3;
 
-    public MinioMcContainer(MinioContainer minio) {
-        super("minio/mc");
-        this.minio = minio;
-        dependsOn(minio);
-        withNetwork(minio.getNetwork());
+    public S3AdminContainer(S3MockContainer s3) {
+        super("amazon/aws-cli:2.36.46");
+        this.s3 = s3;
+        dependsOn(s3);
+        withNetwork(s3.getNetwork());
         withCreateContainerCmdModifier(c -> c.withTty(true).withEntrypoint("/bin/sh"));
+        withEnv("AWS_ACCESS_KEY_ID", s3.accessKey());
+        withEnv("AWS_SECRET_ACCESS_KEY", s3.secretKey());
     }
 
-    @Override
-    protected void containerIsStarted(InspectContainerResponse containerInfo) {
-        try {
-            execSecure(
-                    "mc alias set test-minio http://%s:9000 %s %s",
-                    minio.getNetworkAliases().get(0), minio.accessKey(), minio.secretKey());
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
+    private String endpointUrl() {
+        return format("http://%s:9000", s3.getNetworkAliases().get(0));
     }
 
     public ExecResult execSecure(String command, Object... args) throws IOException, InterruptedException {
@@ -42,14 +36,14 @@ public class MinioMcContainer extends GenericContainer<MinioMcContainer> {
     }
 
     public void deleteBucket(String bucket) throws IOException, InterruptedException {
-        exec("mc rb test-minio/%s --force", bucket);
+        exec("aws --endpoint-url %s s3 rb s3://%s --force", endpointUrl(), bucket);
     }
 
     public void createBucket(String bucket) throws IOException, InterruptedException {
-        execSecure("mc mb test-minio/%s", bucket);
+        execSecure("aws --endpoint-url %s s3 mb s3://%s", endpointUrl(), bucket);
     }
 
     public void createObject(String bucket, String key, String content) throws IOException, InterruptedException {
-        execSecure("echo -n \"%s\" | mc pipe test-minio/%s/%s", content, bucket, key);
+        execSecure("echo -n \"%s\" | aws --endpoint-url %s s3 cp - s3://%s/%s", content, endpointUrl(), bucket, key);
     }
 }

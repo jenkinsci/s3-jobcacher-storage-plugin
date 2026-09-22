@@ -6,8 +6,6 @@ import com.cloudbees.plugins.credentials.SystemCredentialsProvider;
 import java.util.UUID;
 import jenkins.plugins.itemstorage.GlobalItemStorage;
 import jenkins.plugins.itemstorage.s3.NonAWSS3ItemStorage;
-import minio.MinioContainer;
-import minio.MinioMcContainer;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.plugins.workflow.job.WorkflowRun;
@@ -16,38 +14,40 @@ import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import s3mock.S3AdminContainer;
+import s3mock.S3MockContainer;
 
 @Testcontainers(disabledWithoutDocker = true)
 @WithJenkins
-class ArbitraryFileCacheStepMinioTest {
+class ArbitraryFileCacheStepS3MockTest {
 
     @Container
-    private static final MinioContainer minio = new MinioContainer();
+    private static final S3MockContainer s3 = new S3MockContainer();
 
     @Container
-    private static final MinioMcContainer mc = new MinioMcContainer(minio);
+    private static final S3AdminContainer s3Admin = new S3AdminContainer(s3);
 
     private static void setupCache(JenkinsRule j) throws Exception {
-        // create a test bucket in MinIO
+        // create a test bucket in the S3-compatible mock
         String bucket = UUID.randomUUID().toString();
-        mc.createBucket(bucket);
+        s3Admin.createBucket(bucket);
 
         // setup credentials for bucket in Jenkins
         AWSCredentialsImpl credentials = new AWSCredentialsImpl(
                 CredentialsScope.SYSTEM,
-                "minio-test-credentials-id",
-                minio.accessKey(),
-                minio.secretKey(),
-                "minio test credentials");
+                "s3-test-credentials-id",
+                s3.accessKey(),
+                s3.secretKey(),
+                "s3 test credentials");
         SystemCredentialsProvider.getInstance().getCredentials().add(credentials);
         SystemCredentialsProvider.getInstance().save();
 
         // configure the corresponding ItemStorage in Jenkins
         NonAWSS3ItemStorage storage = new NonAWSS3ItemStorage(
-                "minio-test-credentials-id",
+                "s3-test-credentials-id",
                 bucket,
                 "instances1/",
-                minio.getExternalAddress(),
+                s3.getExternalAddress(),
                 "us-west-1",
                 null,
                 true,
