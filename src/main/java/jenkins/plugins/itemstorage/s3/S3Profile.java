@@ -24,7 +24,6 @@
 
 package jenkins.plugins.itemstorage.s3;
 
-import com.amazonaws.services.s3.model.*;
 import com.cloudbees.jenkins.plugins.awscredentials.AmazonWebServicesCredentials;
 import hudson.FilePath;
 import hudson.ProxyConfiguration;
@@ -34,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import jenkins.model.Jenkins;
 import org.kohsuke.stapler.DataBoundConstructor;
+import software.amazon.awssdk.services.s3.model.*;
 
 /**
  * Based on same named class in S3 Jenkins Plugin
@@ -57,7 +57,7 @@ public class S3Profile {
             boolean pathStyleAccess,
             boolean parallelDownloads) {
         this.helper = new ClientHelper(
-                credentials != null ? credentials.getCredentials() : null,
+                credentials != null ? credentials.resolveCredentials() : null,
                 endpoint,
                 region,
                 getProxy(),
@@ -131,43 +131,44 @@ public class S3Profile {
     }
 
     public void delete(String bucketName, String pathPrefix) {
-        ObjectListing listing = null;
+        ListObjectsResponse listing = null;
         do {
             listing = listing == null
-                    ? helper.client().listObjects(bucketName, withPrefix(pathPrefix))
+                    ? helper.client().listObjects(ListObjectsRequest.builder().bucket(bucketName).prefix(withPrefix(pathPrefix))
+                            .build())
                     : helper.client().listNextBatchOfObjects(listing);
 
-            DeleteObjectsRequest req = new DeleteObjectsRequest(bucketName);
+            DeleteObjectsRequest req = DeleteObjectsRequest.builder().bucket(bucketName)
+                    .build();
 
             List<DeleteObjectsRequest.KeyVersion> keys =
-                    new ArrayList<>(listing.getObjectSummaries().size());
-            for (S3ObjectSummary summary : listing.getObjectSummaries()) {
-                keys.add(new DeleteObjectsRequest.KeyVersion(summary.getKey()));
+                    new ArrayList<>(listing.objectSummaries().size());
+            for (S3ObjectSummary summary : listing.objectSummaries()) {
+                keys.add(new software.amazon.awssdk.services.s3.model.DeleteObjectsRequestKeyVersion(summary.key()));
             }
-            req.withKeys(keys);
+            req.keys(keys);
 
             helper.client().deleteObjects(req);
         } while (listing.isTruncated());
     }
 
     public void rename(String bucketName, String currentPathPrefix, String newPathPrefix) {
-        ObjectListing listing = null;
+        ListObjectsResponse listing = null;
         do {
             listing = listing == null
-                    ? helper.client().listObjects(bucketName, withPrefix(currentPathPrefix))
+                    ? helper.client().listObjects(ListObjectsRequest.builder().bucket(bucketName).prefix(withPrefix(currentPathPrefix))
+                            .build())
                     : helper.client().listNextBatchOfObjects(listing);
-            for (S3ObjectSummary summary : listing.getObjectSummaries()) {
-                String key = summary.getKey();
+            for (S3ObjectSummary summary : listing.objectSummaries()) {
+                String key = summary.key();
 
                 helper.client()
-                        .copyObject(
-                                bucketName,
-                                key,
-                                bucketName,
-                                withPrefix(newPathPrefix)
-                                        + key.substring(
-                                                withPrefix(currentPathPrefix).length()));
-                helper.client().deleteObject(bucketName, key);
+                        .copyObject(CopyObjectRequest.builder().sourceBucket(bucketName).sourceKey(key).destinationBucket(bucketName).destinationKey(withPrefix(newPathPrefix)
+                        + key.substring(
+                        withPrefix(currentPathPrefix).length()))
+                        .build());
+                helper.client().deleteObject(DeleteObjectRequest.builder().bucket(bucketName).key(key)
+                        .build());
             }
         } while (listing.isTruncated());
     }

@@ -24,12 +24,13 @@
 
 package jenkins.plugins.itemstorage.s3;
 
-import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import hudson.remoting.VirtualChannel;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class S3UploadCallable extends S3BaseUploadCallable<Void> {
 
@@ -58,9 +59,10 @@ public class S3UploadCallable extends S3BaseUploadCallable<Void> {
             return null;
         }
 
-        PutObjectRequest request = new PutObjectRequest(bucketName, key, source);
-        request.setMetadata(buildMetadata(source));
-        transferManager.getAmazonS3Client().putObject(request);
+        PutObjectRequest request = PutObjectRequest.builder().bucket(bucketName).key(key)
+                .build();
+        request.metadata(buildMetadata(source));
+        transferManager.getAmazonS3Client().putObject(request, RequestBody.fromFile(source));
 
         return null;
     }

@@ -24,9 +24,6 @@
 
 package jenkins.plugins.itemstorage.s3;
 
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
 import java.io.File;
@@ -35,6 +32,9 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
  * Based on S3 Jenkins Plugin class.
@@ -52,8 +52,8 @@ public class Uploads {
     public Uploads() {}
 
     public void startUploading(
-            TransferManager manager, File file, InputStream inputStream, Destination dest, ObjectMetadata metadata)
-            throws AmazonServiceException {
+            TransferManager manager, File file, InputStream inputStream, Destination dest, HeadObjectResponse metadata)
+            throws AwsServiceException {
         PutObjectRequest request = new PutObjectRequest(dest.bucketName, dest.objectName, inputStream, metadata);
 
         // Set the buffer size (ReadLimit) equal to the multipart upload size,
