@@ -24,8 +24,6 @@
 
 package jenkins.plugins.itemstorage.s3;
 
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.transfer.Download;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import java.io.File;
@@ -34,6 +32,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.logging.Logger;
 import org.apache.commons.io.FileUtils;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.services.s3.model.S3ObjectSummary;
 
 /**
  * From the S3 Jenkins plugin modified a bit to meet this use case
@@ -47,21 +47,21 @@ public final class Downloads {
     public Downloads() {}
 
     public void startDownload(TransferManager manager, File base, String pathPrefix, S3ObjectSummary summary)
-            throws AmazonServiceException, IOException {
+            throws AwsServiceException, IOException {
         // calculate target file name
-        File targetFile = FileUtils.getFile(base, summary.getKey().substring(pathPrefix.length() + 1));
+        File targetFile = FileUtils.getFile(base, summary.key().substring(pathPrefix.length() + 1));
 
         // if target file exists, only download it if newer
-        if (targetFile.lastModified() < summary.getLastModified().getTime()) {
+        if (targetFile.lastModified() < summary.lastModified().getTime()) {
             // ensure directory above file exists
             FileUtils.forceMkdir(targetFile.getParentFile());
 
             // Start the download
-            Download download = manager.download(summary.getBucketName(), summary.getKey(), targetFile);
+            Download download = manager.download(summary.bucketName(), summary.key(), targetFile);
 
             // Keep for later
             startedDownloads.add(
-                    new Memo(download, targetFile, summary.getLastModified().getTime()));
+                    new Memo(download, targetFile, summary.lastModified().getTime()));
         }
     }
 

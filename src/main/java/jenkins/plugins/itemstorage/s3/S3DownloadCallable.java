@@ -24,7 +24,6 @@
 
 package jenkins.plugins.itemstorage.s3;
 
-import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import hudson.remoting.VirtualChannel;
 import java.io.BufferedInputStream;
@@ -35,6 +34,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import org.apache.commons.io.IOUtils;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 public class S3DownloadCallable extends S3Callable<Void> {
 
@@ -53,8 +55,9 @@ public class S3DownloadCallable extends S3Callable<Void> {
 
     @Override
     public Void invoke(TransferManager transferManager, File target, VirtualChannel channel) throws IOException {
-        S3Object object = transferManager.getAmazonS3Client().getObject(bucketName, key);
-        try (InputStream inputStream = new BufferedInputStream(object.getObjectContent());
+        ResponseInputStream<GetObjectResponse> object = transferManager.getAmazonS3Client().getObject(GetObjectRequest.builder().bucket(bucketName).key(key)
+                .build());
+        try (InputStream inputStream = new BufferedInputStream(object);
                 OutputStream outputStream = new BufferedOutputStream(Files.newOutputStream(target.toPath()))) {
             IOUtils.copy(inputStream, outputStream);
         }
