@@ -25,8 +25,6 @@
 package jenkins.plugins.itemstorage.s3;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import hudson.remoting.VirtualChannel;
@@ -39,6 +37,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 
 /**
  * @author Peter Hayes
@@ -92,8 +93,8 @@ public class S3UploadAllCallable extends S3BaseUploadCallable<Integer> {
 
                     S3ObjectSummary summary = summaries.get(key);
                     if (summary == null
-                            || f.lastModified() > summary.getLastModified().getTime()) {
-                        ObjectMetadata metadata = buildMetadata(f);
+                            || f.lastModified() > summary.lastModified().getTime()) {
+                        HeadObjectResponse metadata = buildMetadata(f);
 
                         uploads.startUploading(
                                 transferManager,
@@ -119,10 +120,11 @@ public class S3UploadAllCallable extends S3BaseUploadCallable<Integer> {
     private Map<String, S3ObjectSummary> lookupExistingCacheEntries(AmazonS3 s3) {
         Map<String, S3ObjectSummary> summaries = new HashMap<>();
 
-        ObjectListing listing = s3.listObjects(bucketName, pathPrefix);
+        ListObjectsResponse listing = s3.listObjects(ListObjectsRequest.builder().bucket(bucketName).prefix(pathPrefix)
+                .build());
         do {
-            for (S3ObjectSummary summary : listing.getObjectSummaries()) {
-                summaries.put(summary.getKey(), summary);
+            for (S3ObjectSummary summary : listing.objectSummaries()) {
+                summaries.put(summary.key(), summary);
             }
             listing = listing.isTruncated() ? s3.listNextBatchOfObjects(listing) : null;
         } while (listing != null);
